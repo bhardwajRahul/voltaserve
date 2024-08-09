@@ -13,11 +13,11 @@ package search
 import (
 	"encoding/json"
 
+	"github.com/minio/minio-go/v7"
+
 	"github.com/kouprlabs/voltaserve/api/infra"
 	"github.com/kouprlabs/voltaserve/api/model"
 	"github.com/kouprlabs/voltaserve/api/repo"
-
-	"github.com/minio/minio-go/v7"
 )
 
 type FileSearch struct {
@@ -80,8 +80,8 @@ func (s *FileSearch) Delete(ids []string) error {
 	return nil
 }
 
-func (s *FileSearch) Query(query string) ([]model.File, error) {
-	hits, err := s.search.Query(s.index, query)
+func (s *FileSearch) Query(query string, opts infra.QueryOptions) ([]model.File, error) {
+	hits, err := s.search.Query(s.index, query, opts)
 	if err != nil {
 		return nil, err
 	}

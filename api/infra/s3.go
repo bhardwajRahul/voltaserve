@@ -16,11 +16,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/kouprlabs/voltaserve/api/config"
-	"github.com/kouprlabs/voltaserve/api/errorpkg"
-
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+
+	"github.com/kouprlabs/voltaserve/api/config"
+	"github.com/kouprlabs/voltaserve/api/errorpkg"
+	"github.com/kouprlabs/voltaserve/api/log"
 )
 
 type S3Manager struct {
@@ -177,7 +178,12 @@ func (mgr *S3Manager) RemoveBucket(bucketName string) error {
 		Prefix:    "",
 		Recursive: true,
 	})
-	mgr.client.RemoveObjects(context.Background(), bucketName, objectCh, minio.RemoveObjectsOptions{})
+	removeObjectErrCh := mgr.client.RemoveObjects(context.Background(), bucketName, objectCh, minio.RemoveObjectsOptions{})
+	for removeErr := range removeObjectErrCh {
+		if removeErr.Err != nil {
+			log.GetLogger().Error(removeErr.Err)
+		}
+	}
 	if err = mgr.client.RemoveBucket(context.Background(), bucketName); err != nil {
 		return err
 	}

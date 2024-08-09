@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/minio/minio-go/v7"
+
 	"github.com/kouprlabs/voltaserve/api/cache"
 	"github.com/kouprlabs/voltaserve/api/client"
 	"github.com/kouprlabs/voltaserve/api/errorpkg"
@@ -26,8 +28,6 @@ import (
 	"github.com/kouprlabs/voltaserve/api/log"
 	"github.com/kouprlabs/voltaserve/api/model"
 	"github.com/kouprlabs/voltaserve/api/repo"
-
-	"github.com/minio/minio-go/v7"
 )
 
 type InsightsService struct {
@@ -61,6 +61,9 @@ func NewInsightsService() *InsightsService {
 			{ID: "rus", ISO6393: "rus", Name: "Russian"},
 			{ID: "spa", ISO6393: "spa", Name: "Spanish"},
 			{ID: "swe", ISO6393: "swe", Name: "Swedish"},
+			{ID: "nor", ISO6393: "nor", Name: "Norwegian"},
+			{ID: "fin", ISO6393: "fin", Name: "Finnish"},
+			{ID: "dan", ISO6393: "dan", Name: "Danish"},
 		},
 		snapshotCache:  cache.NewSnapshotCache(),
 		snapshotRepo:   repo.NewSnapshotRepo(),
@@ -117,7 +120,7 @@ func (svc *InsightsService) Create(id string, opts InsightsCreateOptions, userID
 		UserID:          userID,
 		IsIndeterminate: true,
 		Status:          model.TaskStatusWaiting,
-		Payload:         map[string]string{"fileId": file.GetID()},
+		Payload:         map[string]string{repo.TaskPayloadObjectKey: file.GetName()},
 	})
 	if err != nil {
 		return err
@@ -182,7 +185,7 @@ func (svc *InsightsService) Patch(id string, userID string) error {
 		UserID:          userID,
 		IsIndeterminate: true,
 		Status:          model.TaskStatusWaiting,
-		Payload:         map[string]string{"fileId": file.GetID()},
+		Payload:         map[string]string{repo.TaskPayloadObjectKey: file.GetName()},
 	})
 	if err != nil {
 		return err
@@ -241,7 +244,7 @@ func (svc *InsightsService) Delete(id string, userID string) error {
 		UserID:          userID,
 		IsIndeterminate: true,
 		Status:          model.TaskStatusRunning,
-		Payload:         map[string]string{"fileId": file.GetID()},
+		Payload:         map[string]string{repo.TaskPayloadObjectKey: file.GetName()},
 	})
 	if err != nil {
 		return err

@@ -14,21 +14,21 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/kouprlabs/voltaserve/conversion/pipeline"
-
-	"github.com/kouprlabs/voltaserve/conversion/client"
+	"github.com/kouprlabs/voltaserve/conversion/client/api_client"
 	"github.com/kouprlabs/voltaserve/conversion/infra"
+	"github.com/kouprlabs/voltaserve/conversion/pipeline"
 )
 
 type Scheduler struct {
-	pipelineQueue       [][]client.PipelineRunOptions
+	pipelineQueue       [][]api_client.PipelineRunOptions
 	pipelineWorkerCount int
 	activePipelineCount int
-	apiClient           *client.APIClient
+	installer           *Installer
 }
 
 type SchedulerOptions struct {
 	PipelineWorkerCount int
+	Installer           *Installer
 }
 
 func NewDefaultSchedulerOptions() SchedulerOptions {
@@ -43,9 +43,9 @@ func NewDefaultSchedulerOptions() SchedulerOptions {
 
 func NewScheduler(opts SchedulerOptions) *Scheduler {
 	return &Scheduler{
-		pipelineQueue:       make([][]client.PipelineRunOptions, opts.PipelineWorkerCount),
+		pipelineQueue:       make([][]api_client.PipelineRunOptions, opts.PipelineWorkerCount),
 		pipelineWorkerCount: opts.PipelineWorkerCount,
-		apiClient:           client.NewAPIClient(),
+		installer:           opts.Installer,
 	}
 }
 
@@ -58,13 +58,13 @@ func (s *Scheduler) Start() {
 	go s.pipelineWorkerStatus()
 }
 
-func (s *Scheduler) SchedulePipeline(opts *client.PipelineRunOptions) {
+func (s *Scheduler) SchedulePipeline(opts *api_client.PipelineRunOptions) {
 	index := s.choosePipeline()
 	infra.GetLogger().Named(infra.StrScheduler).Infow("👉  choosing", "pipeline", index)
 	s.pipelineQueue[index] = append(s.pipelineQueue[index], *opts)
 }
 
-/* Choose the pipeline with the least number of items in the queue */
+// Choose the pipeline with the least number of items in the queue.
 func (s *Scheduler) choosePipeline() int {
 	index := 0
 	length := len(s.pipelineQueue[0])
@@ -79,10 +79,10 @@ func (s *Scheduler) choosePipeline() int {
 
 func (s *Scheduler) pipelineWorker(index int) {
 	dispatcher := pipeline.NewDispatcher()
-	s.pipelineQueue[index] = make([]client.PipelineRunOptions, 0)
+	s.pipelineQueue[index] = make([]api_client.PipelineRunOptions, 0)
 	infra.GetLogger().Named(infra.StrPipeline).Infow("⚙️  running", "worker", index)
 	for {
-		if len(s.pipelineQueue[index]) > 0 {
+		if len(s.pipelineQueue[index]) > 0 && !s.installer.IsRunning() {
 			s.activePipelineCount++
 			opts := s.pipelineQueue[index][0]
 			infra.GetLogger().Named(infra.StrPipeline).Infow("🔨  working", "worker", index, "bucket", opts.Bucket, "key", opts.Key)

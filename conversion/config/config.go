@@ -16,18 +16,18 @@ import (
 )
 
 type Config struct {
-	Port         int
-	APIURL       string
-	LanguageURL  string
-	MosaicURL    string
-	WatermarkURL string
-	Security     SecurityConfig
-	Limits       LimitsConfig
-	S3           S3Config
+	Port            int
+	APIURL          string
+	LanguageURL     string
+	MosaicURL       string
+	EnableInstaller bool
+	Security        SecurityConfig
+	Limits          LimitsConfig
+	S3              S3Config
 }
 
 type SecurityConfig struct {
-	APIKey string `json:"api_key"`
+	APIKey string
 }
 
 type LimitsConfig struct {
@@ -56,6 +56,13 @@ func GetConfig() *Config {
 		config = &Config{
 			Port: port,
 		}
+		if len(os.Getenv("ENABLE_INSTALLER")) > 0 {
+			v, err := strconv.ParseBool(os.Getenv("ENABLE_INSTALLER"))
+			if err != nil {
+				panic(err)
+			}
+			config.EnableInstaller = v
+		}
 		readURLs(config)
 		readSecurity(config)
 		readS3(config)
@@ -68,7 +75,6 @@ func readURLs(config *Config) {
 	config.APIURL = os.Getenv("API_URL")
 	config.LanguageURL = os.Getenv("LANGUAGE_URL")
 	config.MosaicURL = os.Getenv("MOSAIC_URL")
-	config.WatermarkURL = os.Getenv("WATERMARK_URL")
 }
 
 func readSecurity(config *Config) {

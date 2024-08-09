@@ -13,17 +13,18 @@ package repo
 import (
 	"errors"
 
+	"gorm.io/gorm"
+
 	"github.com/kouprlabs/voltaserve/api/errorpkg"
 	"github.com/kouprlabs/voltaserve/api/infra"
 	"github.com/kouprlabs/voltaserve/api/model"
-
-	"gorm.io/gorm"
 )
 
 type UserRepo interface {
 	Find(id string) (model.User, error)
 	FindByEmail(email string) (model.User, error)
 	FindAll() ([]model.User, error)
+	Count() (int64, error)
 }
 
 func NewUserRepo() UserRepo {
@@ -35,19 +36,19 @@ func NewUser() model.User {
 }
 
 type userEntity struct {
-	ID                     string  `json:"id" gorm:"column:id"`
-	FullName               string  `json:"fullName" gorm:"column:full_name"`
-	Username               string  `json:"username" gorm:"column:username"`
-	Email                  string  `json:"email" gorm:"column:email"`
-	Picture                *string `json:"picture" gorm:"column:picture"`
-	IsEmailConfirmed       bool    `json:"isEmailConfirmed" gorm:"column:is_email_confirmed"`
-	PasswordHash           string  `json:"passwordHash" gorm:"column:password_hash"`
-	RefreshTokenValue      *string `json:"refreshTokenValue" gorm:"column:refresh_token_value"`
-	RefreshTokenValidTo    *int64  `json:"refreshTokenValidTo" gorm:"column:refresh_token_valid_to"`
-	ResetPasswordToken     *string `json:"resetPasswordToken" gorm:"column:reset_password_token"`
-	EmailConfirmationToken *string `json:"emailConfirmationToken" gorm:"column:email_confirmation_token"`
-	CreateTime             string  `json:"createTime" gorm:"column:create_time"`
-	UpdateTime             *string `json:"updateTime" gorm:"column:update_time"`
+	ID                     string  `gorm:"column:id"                       json:"id"`
+	FullName               string  `gorm:"column:full_name"                json:"fullName"`
+	Username               string  `gorm:"column:username"                 json:"username"`
+	Email                  string  `gorm:"column:email"                    json:"email"`
+	Picture                *string `gorm:"column:picture"                  json:"picture"`
+	IsEmailConfirmed       bool    `gorm:"column:is_email_confirmed"       json:"isEmailConfirmed"`
+	PasswordHash           string  `gorm:"column:password_hash"            json:"passwordHash"`
+	RefreshTokenValue      *string `gorm:"column:refresh_token_value"      json:"refreshTokenValue"`
+	RefreshTokenValidTo    *int64  `gorm:"column:refresh_token_valid_to"   json:"refreshTokenValidTo"`
+	ResetPasswordToken     *string `gorm:"column:reset_password_token"     json:"resetPasswordToken"`
+	EmailConfirmationToken *string `gorm:"column:email_confirmation_token" json:"emailConfirmationToken"`
+	CreateTime             string  `gorm:"column:create_time"              json:"createTime"`
+	UpdateTime             *string `gorm:"column:update_time"              json:"updateTime"`
 }
 
 func (userEntity) TableName() string {
@@ -97,7 +98,7 @@ func newUserRepo() *userRepo {
 }
 
 func (repo *userRepo) Find(id string) (model.User, error) {
-	var res = userEntity{}
+	res := userEntity{}
 	db := repo.db.Where("id = ?", id).First(&res)
 	if db.Error != nil {
 		if errors.Is(db.Error, gorm.ErrRecordNotFound) {
@@ -110,7 +111,7 @@ func (repo *userRepo) Find(id string) (model.User, error) {
 }
 
 func (repo *userRepo) FindByEmail(email string) (model.User, error) {
-	var res = userEntity{}
+	res := userEntity{}
 	db := repo.db.Where("email = ?", email).First(&res)
 	if db.Error != nil {
 		if errors.Is(db.Error, gorm.ErrRecordNotFound) {
@@ -124,7 +125,7 @@ func (repo *userRepo) FindByEmail(email string) (model.User, error) {
 
 func (repo *userRepo) FindAll() ([]model.User, error) {
 	var entities []*userEntity
-	db := repo.db.Raw(`select * from "user"`).Scan(&entities)
+	db := repo.db.Raw(`SELECT * FROM "user"`).Scan(&entities)
 	if db.Error != nil {
 		return nil, db.Error
 	}
@@ -133,4 +134,18 @@ func (repo *userRepo) FindAll() ([]model.User, error) {
 		res = append(res, u)
 	}
 	return res, nil
+}
+
+func (repo *userRepo) Count() (int64, error) {
+	type Result struct {
+		Result int64
+	}
+	var res Result
+	db := repo.db.
+		Raw(`SELECT count(*) as result FROM "user"`).
+		Scan(&res)
+	if db.Error != nil {
+		return 0, db.Error
+	}
+	return res.Result, nil
 }

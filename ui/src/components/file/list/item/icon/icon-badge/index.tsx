@@ -7,7 +7,6 @@
 // the Business Source License, use of this software will be governed
 // by the GNU Affero General Public License v3.0 only, included in the file
 // licenses/AGPL.txt.
-
 import { File } from '@/client/api/file'
 import { Status } from '@/client/api/snapshot'
 import IconBadgeError from './icon-badge-error'
@@ -16,7 +15,6 @@ import IconBadgeMosaic from './icon-badge-mosaic'
 import IconBadgeProcessing from './icon-badge-processing'
 import IconBadgeShared from './icon-badge-shared'
 import IconBadgeWaiting from './icon-badge-waiting'
-import IconBadgeWatermark from './icon-badge-watermark'
 
 export type IconBadgeProps = {
   file: File
@@ -31,14 +29,13 @@ const IconBadge = ({ file, isLoading }: IconBadgeProps) => {
           {file.snapshot?.status === Status.Waiting ? (
             <IconBadgeWaiting />
           ) : null}
-          {file.snapshot?.status === Status.Processing ? (
+          {file.snapshot?.status === Status.Processing || isLoading ? (
             <IconBadgeProcessing />
           ) : null}
           {file.snapshot?.status === Status.Error ? <IconBadgeError /> : null}
           {file.isShared ? <IconBadgeShared /> : null}
           {file.snapshot?.entities ? <IconBadgeInsights /> : null}
           {file.snapshot?.mosaic ? <IconBadgeMosaic /> : null}
-          {file.snapshot?.watermark ? <IconBadgeWatermark /> : null}
         </>
       ) : null}
       {file.type === 'folder' ? (

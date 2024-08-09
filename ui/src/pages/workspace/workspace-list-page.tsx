@@ -7,7 +7,6 @@
 // the Business Source License, use of this software will be governed
 // by the GNU Affero General Public License v3.0 only, included in the file
 // licenses/AGPL.txt.
-
 import { useEffect } from 'react'
 import {
   Link,
@@ -91,7 +90,7 @@ const WorkspaceListPage = () => {
             <span>Failed to load workspaces.</span>
           </div>
         ) : null}
-        {!list && !error && <SectionSpinner />}
+        {!list && !error ? <SectionSpinner /> : null}
         {list && list.data.length === 0 && !error ? (
           <div
             className={cx(

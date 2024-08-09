@@ -7,7 +7,6 @@
 // the Business Source License, use of this software will be governed
 // by the GNU Affero General Public License v3.0 only, included in the file
 // licenses/AGPL.txt.
-
 import { useCallback, useEffect, useState } from 'react'
 import { Badge, Table, Tbody, Td, Tooltip, Tr } from '@chakra-ui/react'
 import cx from 'classnames'

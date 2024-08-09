@@ -16,6 +16,7 @@ import (
 	"github.com/kouprlabs/voltaserve/api/cache"
 	"github.com/kouprlabs/voltaserve/api/config"
 	"github.com/kouprlabs/voltaserve/api/guard"
+	"github.com/kouprlabs/voltaserve/api/infra"
 	"github.com/kouprlabs/voltaserve/api/model"
 	"github.com/kouprlabs/voltaserve/api/repo"
 	"github.com/kouprlabs/voltaserve/api/search"
@@ -23,6 +24,7 @@ import (
 
 type UserService struct {
 	userMapper *userMapper
+	userRepo   repo.UserRepo
 	userSearch *search.UserSearch
 	orgRepo    repo.OrganizationRepo
 	orgCache   *cache.OrganizationCache
@@ -36,6 +38,7 @@ type UserService struct {
 func NewUserService() *UserService {
 	return &UserService{
 		userMapper: newUserMapper(),
+		userRepo:   repo.NewUserRepo(),
 		userSearch: search.NewUserSearch(),
 		orgRepo:    repo.NewOrganizationRepo(),
 		orgCache:   cache.NewOrganizationCache(),
@@ -51,7 +54,7 @@ type UserListOptions struct {
 	Query               string
 	OrganizationID      string
 	GroupID             string
-	NonGroupMembersOnly bool
+	ExcludeGroupMembers bool
 	SortBy              string
 	SortOrder           string
 	Page                uint
@@ -107,7 +110,7 @@ func (svc *UserService) List(opts UserListOptions, userID string) (*UserList, er
 	res := []model.User{}
 	var err error
 	if opts.Query == "" {
-		if opts.OrganizationID != "" && opts.GroupID != "" && opts.NonGroupMembersOnly {
+		if opts.OrganizationID != "" && opts.GroupID != "" && opts.ExcludeGroupMembers {
 			orgMembers, err := svc.orgRepo.GetMembers(opts.OrganizationID)
 			if err != nil {
 				return nil, err
@@ -117,14 +120,14 @@ func (svc *UserService) List(opts UserListOptions, userID string) (*UserList, er
 				return nil, err
 			}
 			for _, om := range orgMembers {
-				found := false
-				for _, tm := range groupMembers {
-					if om.GetID() == tm.GetID() {
-						found = true
+				isGroupMember := false
+				for _, gm := range groupMembers {
+					if om.GetID() == gm.GetID() {
+						isGroupMember = true
 						break
 					}
 				}
-				if !found {
+				if !isGroupMember {
 					res = append(res, om)
 				}
 			}
@@ -140,7 +143,11 @@ func (svc *UserService) List(opts UserListOptions, userID string) (*UserList, er
 			}
 		}
 	} else {
-		users, err := svc.userSearch.Query(opts.Query)
+		count, err := svc.userRepo.Count()
+		if err != nil {
+			return nil, err
+		}
+		users, err := svc.userSearch.Query(opts.Query, infra.QueryOptions{Limit: count})
 		if err != nil {
 			return nil, err
 		}
@@ -223,8 +230,7 @@ func (svc *UserService) doPagination(data []model.User, page, size uint) ([]mode
 	return pageData, totalElements, totalPages
 }
 
-type userMapper struct {
-}
+type userMapper struct{}
 
 func newUserMapper() *userMapper {
 	return &userMapper{}

@@ -28,11 +28,7 @@ linters:
     - cyclop
     - prealloc
     - lll
-    - gosec
-    - gofumpt
-    - godot
     - gocritic
-    - gci
     - funlen
     - gocognit
 

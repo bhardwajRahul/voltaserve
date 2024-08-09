@@ -87,6 +87,11 @@ definitions:
       width:
         type: integer
     type: object
+  model.PDFProps:
+    properties:
+      pages:
+        type: integer
+    type: object
   model.S3Object:
     properties:
       bucket:
@@ -95,26 +100,10 @@ definitions:
         $ref: '#/definitions/model.ImageProps'
       key:
         type: string
+      pdf:
+        $ref: '#/definitions/model.PDFProps'
       size:
         type: integer
-    type: object
-  router.FileCopyOptions:
-    properties:
-      ids:
-        items:
-          type: string
-        type: array
-    required:
-    - ids
-    type: object
-  router.FileDeleteOptions:
-    properties:
-      ids:
-        items:
-          type: string
-        type: array
-    required:
-    - ids
     type: object
   router.FileGrantGroupPermissionOptions:
     properties:
@@ -153,15 +142,6 @@ definitions:
     - ids
     - permission
     - userId
-    type: object
-  router.FileMoveOptions:
-    properties:
-      ids:
-        items:
-          type: string
-        type: array
-    required:
-    - ids
     type: object
   router.FilePatchNameOptions:
     properties:
@@ -247,6 +227,8 @@ definitions:
         type: string
       image:
         $ref: '#/definitions/service.ImageProps'
+      pdf:
+        $ref: '#/definitions/service.PDFProps'
       size:
         type: integer
     type: object
@@ -273,6 +255,42 @@ definitions:
       workspaceId:
         type: string
     type: object
+  service.FileCopyManyOptions:
+    properties:
+      sourceIds:
+        items:
+          type: string
+        type: array
+      targetId:
+        type: string
+    required:
+    - sourceIds
+    - targetId
+    type: object
+  service.FileCopyManyResult:
+    properties:
+      failed:
+        items:
+          type: string
+        type: array
+      new:
+        items:
+          type: string
+        type: array
+      succeeded:
+        items:
+          type: string
+        type: array
+    type: object
+  service.FileDeleteManyOptions:
+    properties:
+      sourceIds:
+        items:
+          type: string
+        type: array
+    required:
+    - sourceIds
+    type: object
   service.FileList:
     properties:
       data:
@@ -289,6 +307,29 @@ definitions:
         type: integer
       totalPages:
         type: integer
+    type: object
+  service.FileMoveManyOptions:
+    properties:
+      sourceIds:
+        items:
+          type: string
+        type: array
+      targetId:
+        type: string
+    required:
+    - sourceIds
+    - targetId
+    type: object
+  service.FileMoveManyResult:
+    properties:
+      failed:
+        items:
+          type: string
+        type: array
+      succeeded:
+        items:
+          type: string
+        type: array
     type: object
   service.FileQuery:
     properties:
@@ -506,6 +547,11 @@ definitions:
       totalPages:
         type: integer
     type: object
+  service.PDFProps:
+    properties:
+      pages:
+        type: integer
+    type: object
   service.Snapshot:
     properties:
       createTime:
@@ -526,6 +572,8 @@ definitions:
         $ref: '#/definitions/service.Download'
       preview:
         $ref: '#/definitions/service.Download'
+      segmentation:
+        $ref: '#/definitions/service.Download'
       status:
         type: string
       task:
@@ -538,8 +586,6 @@ definitions:
         type: string
       version:
         type: integer
-      watermark:
-        $ref: '#/definitions/service.Download'
     type: object
   service.SnapshotActivateOptions:
     properties:
@@ -550,10 +596,10 @@ definitions:
     type: object
   service.SnapshotDetachOptions:
     properties:
-      fileID:
+      fileId:
         type: string
     required:
-    - fileID
+    - fileId
     type: object
   service.SnapshotList:
     properties:
@@ -588,6 +634,8 @@ definitions:
         $ref: '#/definitions/model.S3Object'
       preview:
         $ref: '#/definitions/model.S3Object'
+      segmentation:
+        $ref: '#/definitions/model.S3Object'
       status:
         type: string
       taskId:
@@ -595,8 +643,6 @@ definitions:
       text:
         $ref: '#/definitions/model.S3Object'
       thumbnail:
-        $ref: '#/definitions/model.S3Object'
-      watermark:
         $ref: '#/definitions/model.S3Object'
     type: object
   service.StorageUsage:
@@ -641,8 +687,14 @@ definitions:
         type: boolean
       name:
         type: string
+      payload:
+        additionalProperties:
+          type: string
+        type: object
       percentage:
         type: integer
+      status:
+        type: string
       userId:
         type: string
     type: object
@@ -732,15 +784,6 @@ definitions:
       user:
         $ref: '#/definitions/service.User'
     type: object
-  service.WatermarkInfo:
-    properties:
-      isAvailable:
-        type: boolean
-      isOutdated:
-        type: boolean
-      snapshot:
-        $ref: '#/definitions/service.Snapshot'
-    type: object
   service.Workspace:
     properties:
       createTime:
@@ -799,15 +842,15 @@ info:
 paths:
   /files:
     delete:
-      description: Delete
-      operationId: files_delete
+      description: Delete Many
+      operationId: files_delete_many
       parameters:
       - description: Body
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/router.FileDeleteOptions'
+          $ref: '#/definitions/service.FileDeleteManyOptions'
       produces:
       - application/json
       responses:
@@ -821,7 +864,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errorpkg.ErrorResponse'
-      summary: Delete
+      summary: Delete Many
       tags:
       - Files
     get:
@@ -903,6 +946,34 @@ paths:
       tags:
       - Files
   /files/{id}:
+    delete:
+      description: Delete One
+      operationId: files_delete_one
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Target ID
+        in: path
+        name: targetId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+      summary: Delete One
+      tags:
+      - Files
     get:
       description: Get
       operationId: files_get
@@ -963,22 +1034,21 @@ paths:
       summary: Patch
       tags:
       - Files
-  /files/{id}/copy:
+  /files/{id}/copy/{targetId}:
     post:
-      description: Copy
-      operationId: files_copy
+      description: Copy One
+      operationId: files_copy_one
       parameters:
       - description: ID
         in: path
         name: id
         required: true
         type: string
-      - description: Body
-        in: body
-        name: body
+      - description: Target ID
+        in: path
+        name: targetId
         required: true
-        schema:
-          $ref: '#/definitions/router.FileCopyOptions'
+        type: string
       produces:
       - application/json
       responses:
@@ -990,7 +1060,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errorpkg.ErrorResponse'
-      summary: Copy
+      summary: Copy One
       tags:
       - Files
   /files/{id}/count:
@@ -1103,22 +1173,21 @@ paths:
       summary: List
       tags:
       - Files
-  /files/{id}/move:
+  /files/{id}/move/{targetId}:
     post:
-      description: Move
-      operationId: files_move
+      description: Move One
+      operationId: files_move_one
       parameters:
       - description: ID
         in: path
         name: id
         required: true
         type: string
-      - description: Body
-        in: body
-        name: body
+      - description: Target ID
+        in: path
+        name: targetId
         required: true
-        schema:
-          $ref: '#/definitions/router.FileMoveOptions'
+        type: string
       produces:
       - application/json
       responses:
@@ -1130,7 +1199,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/errorpkg.ErrorResponse'
-      summary: Move
+      summary: Move One
       tags:
       - Files
   /files/{id}/name:
@@ -1201,6 +1270,65 @@ paths:
       summary: Download Original
       tags:
       - Files
+  /files/{id}/patch_from_s3:
+    patch:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: Patch from S3
+      operationId: files_patch_from_s3
+      parameters:
+      - description: API Key
+        in: query
+        name: api_key
+        required: true
+        type: string
+      - description: Access Token
+        in: query
+        name: access_token
+        required: true
+        type: string
+      - description: S3 Key
+        in: query
+        name: s3_key
+        required: true
+        type: string
+      - description: S3 Bucket
+        in: query
+        name: s3_bucket
+        required: true
+        type: string
+      - description: Size
+        in: query
+        name: size
+        required: true
+        type: string
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.File'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+      summary: Patch from S3
+      tags:
+      - Files
   /files/{id}/path:
     get:
       description: Get Path
@@ -1241,14 +1369,14 @@ paths:
         name: id
         required: true
         type: string
+      - description: Extension
+        in: path
+        name: ext
+        required: true
+        type: string
       - description: Access Token
         in: query
         name: access_token
-        required: true
-        type: string
-      - description: Extension
-        in: query
-        name: ext
         required: true
         type: string
       produces:
@@ -1295,6 +1423,74 @@ paths:
       summary: Revoke Group Permission
       tags:
       - Files
+  /files/{id}/segmentation/pages/{page}.png:
+    get:
+      description: Download Segmentation Page
+      operationId: files_download_segmentation_page
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page
+        in: path
+        name: page
+        required: true
+        type: string
+      - description: Access Token
+        in: query
+        name: access_token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+      summary: Download Segmentation Page
+      tags:
+      - Files
+  /files/{id}/segmentation/thumbnails/{page}.jpg:
+    get:
+      description: Download Segmentation Thumbnail
+      operationId: files_download_segmentation_thumbnail
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page
+        in: path
+        name: page
+        required: true
+        type: string
+      - description: Access Token
+        in: query
+        name: access_token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+      summary: Download Segmentation Thumbnail
+      tags:
+      - Files
   /files/{id}/size:
     get:
       description: Get Size
@@ -1333,14 +1529,14 @@ paths:
         name: id
         required: true
         type: string
+      - description: Extension
+        in: path
+        name: ext
+        required: true
+        type: string
       - description: Access Token
         in: query
         name: access_token
-        required: true
-        type: string
-      - description: Extension
-        in: query
-        name: ext
         required: true
         type: string
       produces:
@@ -1385,6 +1581,102 @@ paths:
           schema:
             $ref: '#/definitions/errorpkg.ErrorResponse'
       summary: Get User Permissions
+      tags:
+      - Files
+  /files/copy:
+    post:
+      description: Copy Many
+      operationId: files_copy_many
+      parameters:
+      - description: Body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.FileCopyManyOptions'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.FileCopyManyResult'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+      summary: Copy Many
+      tags:
+      - Files
+  /files/create_from_s3:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: Create from S3
+      operationId: files_create_from_s3
+      parameters:
+      - description: API Key
+        in: query
+        name: api_key
+        required: true
+        type: string
+      - description: Access Token
+        in: query
+        name: access_token
+        required: true
+        type: string
+      - description: Workspace ID
+        in: query
+        name: workspace_id
+        required: true
+        type: string
+      - description: Parent ID
+        in: query
+        name: parent_id
+        type: string
+      - description: Name
+        in: query
+        name: name
+        type: string
+      - description: S3 Key
+        in: query
+        name: s3_key
+        required: true
+        type: string
+      - description: S3 Bucket
+        in: query
+        name: s3_bucket
+        required: true
+        type: string
+      - description: Size
+        in: query
+        name: size
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.File'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+      summary: Create from S3
       tags:
       - Files
   /files/grant_group_permission:
@@ -1475,6 +1767,35 @@ paths:
           schema:
             $ref: '#/definitions/errorpkg.ErrorResponse'
       summary: List by Path
+      tags:
+      - Files
+  /files/move:
+    post:
+      description: Move Many
+      operationId: files_move_many
+      parameters:
+      - description: Body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.FileMoveManyOptions'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.FileMoveManyResult'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+      summary: Move Many
       tags:
       - Files
   /files/revoke_user_permission:
@@ -3060,6 +3381,24 @@ paths:
       summary: Get Count
       tags:
       - Tasks
+  /tasks/dismiss:
+    post:
+      consumes:
+      - application/json
+      description: Dismiss All
+      operationId: tasks_dismiss_all
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/errorpkg.ErrorResponse'
+      summary: Dismiss All
+      tags:
+      - Tasks
   /users:
     get:
       description: List
@@ -3111,115 +3450,6 @@ paths:
       summary: List
       tags:
       - Users
-  /watermarks/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: Delete
-      operationId: watermark_delete
-      parameters:
-      - description: ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/errorpkg.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/errorpkg.ErrorResponse'
-      summary: Delete
-      tags:
-      - Watermark
-    post:
-      consumes:
-      - application/json
-      description: Create
-      operationId: watermark_create
-      parameters:
-      - description: ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/errorpkg.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/errorpkg.ErrorResponse'
-      summary: Create
-      tags:
-      - Watermark
-  /watermarks/{id}/info:
-    get:
-      consumes:
-      - application/json
-      description: Get Info
-      operationId: watermark_get_info
-      parameters:
-      - description: ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/service.WatermarkInfo'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/errorpkg.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/errorpkg.ErrorResponse'
-      summary: Get Info
-      tags:
-      - Watermark
-  /watermarks/{id}/watermark{ext}:
-    get:
-      description: Download
-      operationId: watermark_download
-      parameters:
-      - description: ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/errorpkg.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/errorpkg.ErrorResponse'
-      summary: Download
-      tags:
-      - Watermark
   /workspaces:
     get:
       description: List

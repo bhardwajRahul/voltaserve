@@ -12,19 +12,19 @@ package repo
 
 import (
 	"errors"
-	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/kouprlabs/voltaserve/api/errorpkg"
 	"github.com/kouprlabs/voltaserve/api/helper"
 	"github.com/kouprlabs/voltaserve/api/infra"
 	"github.com/kouprlabs/voltaserve/api/model"
-
-	"gorm.io/gorm"
 )
 
 type WorkspaceRepo interface {
 	Insert(opts WorkspaceInsertOptions) (model.Workspace, error)
 	Find(id string) (model.Workspace, error)
+	Count() (int64, error)
 	UpdateName(id string, name string) (model.Workspace, error)
 	UpdateStorageCapacity(id string, storageCapacity int64) (model.Workspace, error)
 	UpdateRootID(id string, rootNodeID string) error
@@ -32,6 +32,7 @@ type WorkspaceRepo interface {
 	GetIDs() ([]string, error)
 	GetIDsByOrganization(orgID string) ([]string, error)
 	GrantUserPermission(id string, userID string, permission string) error
+	RevokeUserPermission(id string, userID string) error
 }
 
 func NewWorkspaceRepo() WorkspaceRepo {
@@ -43,16 +44,16 @@ func NewWorkspace() model.Workspace {
 }
 
 type workspaceEntity struct {
-	ID               string                  `json:"id," gorm:"column:id;size:36"`
-	Name             string                  `json:"name" gorm:"column:name;size:255"`
-	StorageCapacity  int64                   `json:"storageCapacity" gorm:"column:storage_capacity"`
-	RootID           string                  `json:"rootId" gorm:"column:root_id;size:36"`
-	OrganizationID   string                  `json:"organizationId" gorm:"column:organization_id;size:36"`
-	UserPermissions  []*UserPermissionValue  `json:"userPermissions" gorm:"-"`
-	GroupPermissions []*GroupPermissionValue `json:"groupPermissions" gorm:"-"`
-	Bucket           string                  `json:"bucket" gorm:"column:bucket;size:255"`
-	CreateTime       string                  `json:"createTime" gorm:"column:create_time"`
-	UpdateTime       *string                 `json:"updateTime,omitempty" gorm:"column:update_time"`
+	ID               string                  `gorm:"column:id;size:36"              json:"id"`
+	Name             string                  `gorm:"column:name;size:255"           json:"name"`
+	StorageCapacity  int64                   `gorm:"column:storage_capacity"        json:"storageCapacity"`
+	RootID           *string                 `gorm:"column:root_id;size:36"         json:"rootId"`
+	OrganizationID   string                  `gorm:"column:organization_id;size:36" json:"organizationId"`
+	UserPermissions  []*UserPermissionValue  `gorm:"-"                              json:"userPermissions"`
+	GroupPermissions []*GroupPermissionValue `gorm:"-"                              json:"groupPermissions"`
+	Bucket           string                  `gorm:"column:bucket;size:255"         json:"bucket"`
+	CreateTime       string                  `gorm:"column:create_time"             json:"createTime"`
+	UpdateTime       *string                 `gorm:"column:update_time"             json:"updateTime,omitempty"`
 }
 
 func (*workspaceEntity) TableName() string {
@@ -60,12 +61,12 @@ func (*workspaceEntity) TableName() string {
 }
 
 func (w *workspaceEntity) BeforeCreate(*gorm.DB) (err error) {
-	w.CreateTime = time.Now().UTC().Format(time.RFC3339)
+	w.CreateTime = helper.NewTimestamp()
 	return nil
 }
 
 func (w *workspaceEntity) BeforeSave(*gorm.DB) (err error) {
-	timeNow := time.Now().UTC().Format(time.RFC3339)
+	timeNow := helper.NewTimestamp()
 	w.UpdateTime = &timeNow
 	return nil
 }
@@ -83,7 +84,11 @@ func (w *workspaceEntity) GetStorageCapacity() int64 {
 }
 
 func (w *workspaceEntity) GetRootID() string {
-	return w.RootID
+	if w.RootID == nil {
+		return ""
+	}
+
+	return *w.RootID
 }
 
 func (w *workspaceEntity) GetOrganizationID() string {
@@ -140,7 +145,7 @@ type WorkspaceInsertOptions struct {
 	StorageCapacity int64
 	Image           *string
 	OrganizationID  string
-	RootID          string
+	RootID          *string
 	Bucket          string
 }
 
@@ -173,7 +178,7 @@ func (repo *workspaceRepo) Insert(opts WorkspaceInsertOptions) (model.Workspace,
 }
 
 func (repo *workspaceRepo) find(id string) (*workspaceEntity, error) {
-	var res = workspaceEntity{}
+	res := workspaceEntity{}
 	db := repo.db.Where("id = ?", id).First(&res)
 	if db.Error != nil {
 		if errors.Is(db.Error, gorm.ErrRecordNotFound) {
@@ -194,6 +199,20 @@ func (repo *workspaceRepo) Find(id string) (model.Workspace, error) {
 		return nil, err
 	}
 	return workspace, err
+}
+
+func (repo *workspaceRepo) Count() (int64, error) {
+	type Result struct {
+		Result int64
+	}
+	var res Result
+	db := repo.db.
+		Raw("SELECT count(*) as result FROM workspace").
+		Scan(&res)
+	if db.Error != nil {
+		return 0, db.Error
+	}
+	return res.Result, nil
 }
 
 func (repo *workspaceRepo) UpdateName(id string, name string) (model.Workspace, error) {
@@ -288,9 +307,19 @@ func (repo *workspaceRepo) GetIDsByOrganization(orgID string) ([]string, error) 
 }
 
 func (repo *workspaceRepo) GrantUserPermission(id string, userID string, permission string) error {
-	db := repo.db.Exec(
-		"INSERT INTO userpermission (id, user_id, resource_id, permission) VALUES (?, ?, ?, ?) ON CONFLICT (user_id, resource_id) DO UPDATE SET permission = ?",
-		helper.NewID(), userID, id, permission, permission)
+	db := repo.db.
+		Exec(`INSERT INTO userpermission (id, user_id, resource_id, permission, create_time)
+              VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT (user_id, resource_id) DO UPDATE SET permission = ?`,
+			helper.NewID(), userID, id, permission, helper.NewTimestamp(), permission)
+	if db.Error != nil {
+		return db.Error
+	}
+	return nil
+}
+
+func (repo *workspaceRepo) RevokeUserPermission(id string, userID string) error {
+	db := repo.db.Exec("DELETE FROM userpermission WHERE user_id = ? AND resource_id = ?", userID, id)
 	if db.Error != nil {
 		return db.Error
 	}

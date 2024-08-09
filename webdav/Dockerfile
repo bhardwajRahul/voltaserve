@@ -8,18 +8,25 @@
 # by the GNU Affero General Public License v3.0 only, included in the file
 # licenses/AGPL.txt.
 
-FROM oven/bun:1-alpine
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /build
+
+COPY go.mod go.sum .
+
+RUN go mod download
+
+COPY . .
+
+RUN go build -o voltaserve-webdav
+
+FROM golang:1.22-alpine AS runner
 
 WORKDIR /app
 
-COPY src ./src
-COPY .env .
-COPY package.json .
-COPY bun.lockb .
-COPY tsconfig.json .
+COPY --from=builder /build/voltaserve-webdav ./voltaserve-webdav
+COPY --from=builder /build/.env ./.env
 
-RUN bun install --frozen-lockfile --production
-
-ENTRYPOINT ["bun", "run", "start"]
+ENTRYPOINT ["./voltaserve-webdav"]
 
 EXPOSE 8082

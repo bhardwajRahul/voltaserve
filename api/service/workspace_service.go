@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/kouprlabs/voltaserve/api/cache"
 	"github.com/kouprlabs/voltaserve/api/config"
 	"github.com/kouprlabs/voltaserve/api/errorpkg"
@@ -24,8 +26,6 @@ import (
 	"github.com/kouprlabs/voltaserve/api/model"
 	"github.com/kouprlabs/voltaserve/api/repo"
 	"github.com/kouprlabs/voltaserve/api/search"
-
-	"github.com/google/uuid"
 )
 
 type WorkspaceService struct {
@@ -71,9 +71,9 @@ type Workspace struct {
 }
 
 type WorkspaceCreateOptions struct {
-	Name            string  `json:"name" validate:"required,max=255"`
+	Name            string  `json:"name"            validate:"required,max=255"`
 	Image           *string `json:"image"`
-	OrganizationID  string  `json:"organizationId" validate:"required"`
+	OrganizationID  string  `json:"organizationId"  validate:"required"`
 	StorageCapacity int64   `json:"storageCapacity"`
 }
 
@@ -178,7 +178,11 @@ func (svc *WorkspaceService) List(opts WorkspaceListOptions, userID string) (*Wo
 			return nil, err
 		}
 	} else {
-		workspaces, err := svc.workspaceSearch.Query(opts.Query)
+		count, err := svc.workspaceRepo.Count()
+		if err != nil {
+			return nil, err
+		}
+		workspaces, err := svc.workspaceSearch.Query(opts.Query, infra.QueryOptions{Limit: count})
 		if err != nil {
 			return nil, err
 		}
@@ -263,9 +267,6 @@ func (svc *WorkspaceService) Delete(id string, userID string) error {
 		return err
 	}
 	if err = svc.workspaceGuard.Authorize(userID, workspace, model.PermissionOwner); err != nil {
-		return err
-	}
-	if workspace, err = svc.workspaceRepo.Find(id); err != nil {
 		return err
 	}
 	if err = svc.workspaceRepo.Delete(id); err != nil {

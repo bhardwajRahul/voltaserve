@@ -1,33 +1,38 @@
 # Voltaserve WebDAV
 
-Install dependencies:
-
-```shell
-bun i
-```
+Prerequisites:
+- [golangci-lint](https://github.com/golangci/golangci-lint)
+- [gci](https://github.com/daixiang0/gci)
+- [gofumpt](https://github.com/mvdan/gofumpt)
+- [swag](https://github.com/swaggo/swag)
 
 Run for development:
 
 ```shell
-bun run dev
+go run .
 ```
 
-Run for production:
+Build binary:
 
 ```shell
-bun run start
+go build .
 ```
 
 Lint code:
 
 ```shell
-bun run lint
+golangci-lint run
 ```
 
 Format code:
 
 ```shell
-bun run format
+gci write -s standard -s default \
+  -s "prefix(github.com/kouprlabs)" \
+  -s "prefix(github.com/kouprlabs/voltaserve/webdav)" . && \
+gofumpt -w . && \
+gofmt -s -w . && \
+goimports -w .
 ```
 
 Build Docker image:

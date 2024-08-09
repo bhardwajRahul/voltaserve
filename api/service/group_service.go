@@ -16,8 +16,10 @@ import (
 
 	"github.com/kouprlabs/voltaserve/api/cache"
 	"github.com/kouprlabs/voltaserve/api/config"
+	"github.com/kouprlabs/voltaserve/api/errorpkg"
 	"github.com/kouprlabs/voltaserve/api/guard"
 	"github.com/kouprlabs/voltaserve/api/helper"
+	"github.com/kouprlabs/voltaserve/api/infra"
 	"github.com/kouprlabs/voltaserve/api/model"
 	"github.com/kouprlabs/voltaserve/api/repo"
 	"github.com/kouprlabs/voltaserve/api/search"
@@ -66,7 +68,7 @@ func NewGroupService() *GroupService {
 }
 
 type GroupCreateOptions struct {
-	Name           string  `json:"name" validate:"required,max=255"`
+	Name           string  `json:"name"           validate:"required,max=255"`
 	Image          *string `json:"image"`
 	OrganizationID string  `json:"organizationId" validate:"required"`
 }
@@ -170,7 +172,11 @@ func (svc *GroupService) List(opts GroupListOptions, userID string) (*GroupList,
 			}
 		}
 	} else {
-		groups, err := svc.groupSearch.Query(opts.Query)
+		count, err := svc.groupRepo.Count()
+		if err != nil {
+			return nil, err
+		}
+		groups, err := svc.groupSearch.Query(opts.Query, infra.QueryOptions{Limit: count})
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +252,7 @@ func (svc *GroupService) Delete(id string, userID string) error {
 	if err := svc.groupSearch.Delete([]string{group.GetID()}); err != nil {
 		return err
 	}
-	if err := svc.refreshCacheForOrganization(group.GetOrganizationID()); err != nil {
+	if err := svc.groupCache.Delete(group.GetID()); err != nil {
 		return err
 	}
 	return nil
@@ -257,24 +263,28 @@ func (svc *GroupService) AddMember(id string, memberID string, userID string) er
 	if err != nil {
 		return nil
 	}
-	if err := svc.groupGuard.Authorize(userID, group, model.PermissionOwner); err != nil {
-		return err
-	}
+
+	/* Ensure the member exists before proceeding. */
 	if _, err := svc.userRepo.Find(memberID); err != nil {
 		return err
 	}
-	if err := svc.groupRepo.AddUser(id, memberID); err != nil {
+
+	if err := svc.groupGuard.Authorize(userID, group, model.PermissionOwner); err != nil {
 		return err
 	}
-	if err := svc.groupRepo.GrantUserPermission(group.GetID(), memberID, model.PermissionViewer); err != nil {
-		return err
+
+	/* Ensure that the member doesn't already have a higher permission on the group.
+	If we don't check that, we risk downgrading the existing permission.*/
+	if !svc.groupGuard.IsAuthorized(memberID, group, model.PermissionViewer) &&
+		!svc.groupGuard.IsAuthorized(memberID, group, model.PermissionEditor) {
+		if err := svc.groupRepo.GrantUserPermission(group.GetID(), memberID, model.PermissionViewer); err != nil {
+			return err
+		}
+		if _, err := svc.groupCache.Refresh(group.GetID()); err != nil {
+			return err
+		}
 	}
-	if _, err := svc.groupCache.Refresh(group.GetID()); err != nil {
-		return err
-	}
-	if err := svc.refreshCacheForOrganization(group.GetOrganizationID()); err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -283,56 +293,30 @@ func (svc *GroupService) RemoveMember(id string, memberID string, userID string)
 	if err != nil {
 		return nil
 	}
-	if err := svc.groupGuard.Authorize(userID, group, model.PermissionOwner); err != nil {
-		return err
-	}
-	if err := svc.RemoveMemberUnauthorized(id, memberID); err != nil {
-		return err
-	}
-	return nil
-}
 
-func (svc *GroupService) RemoveMemberUnauthorized(id string, memberID string) error {
-	group, err := svc.groupCache.Get(id)
-	if err != nil {
-		return nil
-	}
+	/* Ensure the member exists before proceeding. */
 	if _, err := svc.userRepo.Find(memberID); err != nil {
 		return err
 	}
-	if err := svc.groupRepo.RemoveMember(id, memberID); err != nil {
+
+	if err := svc.groupGuard.Authorize(userID, group, model.PermissionOwner); err != nil {
 		return err
 	}
+
+	/* Make sure member is not the last remaining owner of the group */
+	ownerCount, err := svc.groupRepo.GetOwnerCount(group.GetID())
+	if err != nil {
+		return err
+	}
+	if svc.groupGuard.IsAuthorized(memberID, group, model.PermissionOwner) && ownerCount == 1 {
+		return errorpkg.NewCannotRemoveLastRemainingOwnerOfGroupError(group)
+	}
+
 	if err := svc.groupRepo.RevokeUserPermission(id, memberID); err != nil {
 		return err
 	}
 	if _, err := svc.groupCache.Refresh(group.GetID()); err != nil {
 		return err
-	}
-	if err := svc.refreshCacheForOrganization(group.GetOrganizationID()); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (svc *GroupService) refreshCacheForOrganization(orgID string) error {
-	workspaceIDs, err := svc.workspaceRepo.GetIDsByOrganization(orgID)
-	if err != nil {
-		return err
-	}
-	for _, workspaceID := range workspaceIDs {
-		if _, err := svc.workspaceCache.Refresh(workspaceID); err != nil {
-			return err
-		}
-		filesIDs, err := svc.fileRepo.GetIDsByWorkspace(workspaceID)
-		if err != nil {
-			return err
-		}
-		for _, id := range filesIDs {
-			if _, err := svc.fileCache.Refresh(id); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }

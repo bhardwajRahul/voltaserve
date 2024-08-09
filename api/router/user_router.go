@@ -14,10 +14,10 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/gofiber/fiber/v2"
+
 	"github.com/kouprlabs/voltaserve/api/errorpkg"
 	"github.com/kouprlabs/voltaserve/api/service"
-
-	"github.com/gofiber/fiber/v2"
 )
 
 type UserRouter struct {
@@ -81,9 +81,9 @@ func (r *UserRouter) List(c *fiber.Ctx) error {
 		return errorpkg.NewInvalidQueryParamError("sort_order")
 	}
 	userID := GetUserID(c)
-	var nonGroupMembersOnly bool
-	if c.Query("non_group_members_only") != "" {
-		nonGroupMembersOnly, err = strconv.ParseBool(c.Query("non_group_members_only"))
+	var excludeGroupMembers bool
+	if c.Query("exclude_group_members") != "" {
+		excludeGroupMembers, err = strconv.ParseBool(c.Query("exclude_group_members"))
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func (r *UserRouter) List(c *fiber.Ctx) error {
 		Query:               query,
 		OrganizationID:      c.Query("organization_id"),
 		GroupID:             c.Query("group_id"),
-		NonGroupMembersOnly: nonGroupMembersOnly,
+		ExcludeGroupMembers: excludeGroupMembers,
 		SortBy:              sortBy,
 		SortOrder:           sortOrder,
 		Page:                uint(page),

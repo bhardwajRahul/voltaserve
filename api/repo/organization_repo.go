@@ -12,24 +12,22 @@ package repo
 
 import (
 	"errors"
-	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/kouprlabs/voltaserve/api/errorpkg"
 	"github.com/kouprlabs/voltaserve/api/helper"
 	"github.com/kouprlabs/voltaserve/api/infra"
 	"github.com/kouprlabs/voltaserve/api/model"
-
-	"gorm.io/gorm"
 )
 
 type OrganizationRepo interface {
 	Insert(opts OrganizationInsertOptions) (model.Organization, error)
 	Find(id string) (model.Organization, error)
+	Count() (int64, error)
 	Save(org model.Organization) error
 	Delete(id string) error
 	GetIDs() ([]string, error)
-	AddUser(id string, userID string) error
-	RemoveMember(id string, userID string) error
 	GetMembers(id string) ([]model.User, error)
 	GetGroups(id string) ([]model.Group, error)
 	GetOwnerCount(id string) (int64, error)
@@ -46,13 +44,13 @@ func NewOrganization() model.Organization {
 }
 
 type organizationEntity struct {
-	ID               string                  `json:"id" gorm:"column:id"`
-	Name             string                  `json:"name" gorm:"column:name"`
-	UserPermissions  []*UserPermissionValue  `json:"userPermissions" gorm:"-"`
-	GroupPermissions []*GroupPermissionValue `json:"groupPermissions" gorm:"-"`
-	Members          []string                `json:"members" gorm:"-"`
-	CreateTime       string                  `json:"createTime" gorm:"column:create_time"`
-	UpdateTime       *string                 `json:"updateTime,omitempty" gorm:"column:update_time"`
+	ID               string                  `gorm:"column:id"          json:"id"`
+	Name             string                  `gorm:"column:name"        json:"name"`
+	UserPermissions  []*UserPermissionValue  `gorm:"-"                  json:"userPermissions"`
+	GroupPermissions []*GroupPermissionValue `gorm:"-"                  json:"groupPermissions"`
+	Members          []string                `gorm:"-"                  json:"members"`
+	CreateTime       string                  `gorm:"column:create_time" json:"createTime"`
+	UpdateTime       *string                 `gorm:"column:update_time" json:"updateTime,omitempty"`
 }
 
 func (*organizationEntity) TableName() string {
@@ -60,12 +58,12 @@ func (*organizationEntity) TableName() string {
 }
 
 func (o *organizationEntity) BeforeCreate(*gorm.DB) (err error) {
-	o.CreateTime = time.Now().UTC().Format(time.RFC3339)
+	o.CreateTime = helper.NewTimestamp()
 	return nil
 }
 
 func (o *organizationEntity) BeforeSave(*gorm.DB) (err error) {
-	timeNow := time.Now().UTC().Format(time.RFC3339)
+	timeNow := helper.NewTimestamp()
 	o.UpdateTime = &timeNow
 	return nil
 }
@@ -145,7 +143,7 @@ func (repo *organizationRepo) Insert(opts OrganizationInsertOptions) (model.Orga
 }
 
 func (repo *organizationRepo) find(id string) (*organizationEntity, error) {
-	var res = organizationEntity{}
+	res := organizationEntity{}
 	db := repo.db.Where("id = ?", id).First(&res)
 	if db.Error != nil {
 		if errors.Is(db.Error, gorm.ErrRecordNotFound) {
@@ -166,6 +164,20 @@ func (repo *organizationRepo) Find(id string) (model.Organization, error) {
 		return nil, err
 	}
 	return org, nil
+}
+
+func (repo *organizationRepo) Count() (int64, error) {
+	type Result struct {
+		Result int64
+	}
+	var res Result
+	db := repo.db.
+		Raw("SELECT count(*) as result FROM organization").
+		Scan(&res)
+	if db.Error != nil {
+		return 0, db.Error
+	}
+	return res.Result, nil
 }
 
 func (repo *organizationRepo) Save(org model.Organization) error {
@@ -208,26 +220,12 @@ func (repo *organizationRepo) GetIDs() ([]string, error) {
 	return res, nil
 }
 
-func (repo *organizationRepo) AddUser(id string, userID string) error {
-	db := repo.db.Exec("INSERT INTO organization_user (organization_id, user_id) VALUES (?, ?)", id, userID)
-	if db.Error != nil {
-		return db.Error
-	}
-	return nil
-}
-
-func (repo *organizationRepo) RemoveMember(id string, userID string) error {
-	db := repo.db.Exec("DELETE FROM organization_user WHERE organization_id = ? AND user_id = ?", id, userID)
-	if db.Error != nil {
-		return db.Error
-	}
-	return nil
-}
-
 func (repo *organizationRepo) GetMembers(id string) ([]model.User, error) {
 	var entities []*userEntity
 	db := repo.db.
-		Raw(`SELECT DISTINCT u.* FROM "user" u INNER JOIN organization_user ou ON u.id = ou.user_id WHERE ou.organization_id = ? ORDER BY u.full_name`, id).
+		Raw(`SELECT u.* FROM "user" u INNER JOIN userpermission up on
+             u.id = up.user_id AND up.resource_id = ?`,
+			id).
 		Scan(&entities)
 	if db.Error != nil {
 		return nil, db.Error
@@ -263,7 +261,9 @@ func (repo *organizationRepo) GetOwnerCount(id string) (int64, error) {
 	}
 	var res Result
 	db := repo.db.
-		Raw("SELECT count(*) as result FROM userpermission WHERE resource_id = ? and permission = ?", id, model.PermissionOwner).
+		Raw(`SELECT count(*) as result FROM userpermission
+             WHERE resource_id = ? and permission = ?`,
+			id, model.PermissionOwner).
 		Scan(&res)
 	if db.Error != nil {
 		return 0, db.Error
@@ -272,9 +272,10 @@ func (repo *organizationRepo) GetOwnerCount(id string) (int64, error) {
 }
 
 func (repo *organizationRepo) GrantUserPermission(id string, userID string, permission string) error {
-	db := repo.db.Exec(
-		"INSERT INTO userpermission (id, user_id, resource_id, permission) VALUES (?, ?, ?, ?) ON CONFLICT (user_id, resource_id) DO UPDATE SET permission = ?",
-		helper.NewID(), userID, id, permission, permission)
+	db := repo.db.
+		Exec(`INSERT INTO userpermission (id, user_id, resource_id, permission, create_time)
+              VALUES (?, ?, ?, ?, ?) ON CONFLICT (user_id, resource_id) DO UPDATE SET permission = ?`,
+			helper.NewID(), userID, id, permission, helper.NewTimestamp(), permission)
 	if db.Error != nil {
 		return db.Error
 	}

@@ -17,8 +17,7 @@ import (
 	"strings"
 )
 
-type FileIdentifier struct {
-}
+type FileIdentifier struct{}
 
 func NewFileIdentifier() *FileIdentifier {
 	return &FileIdentifier{}
@@ -46,6 +45,9 @@ func (fi *FileIdentifier) IsOffice(path string) bool {
 		".otg",
 		".odf",
 		".odc",
+		".pages",
+		".numbers",
+		".key",
 		".rtf",
 	}
 	extension := filepath.Ext(path)
@@ -81,6 +83,7 @@ func (fi *FileIdentifier) IsPlainText(path string) bool {
 		".yaml",
 		".toml",
 		".md",
+		".csv",
 	}
 	extension := filepath.Ext(path)
 	for _, v := range extensions {

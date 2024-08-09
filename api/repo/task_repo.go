@@ -13,131 +13,131 @@ package repo
 import (
 	"encoding/json"
 	"errors"
-	"time"
-
-	"github.com/kouprlabs/voltaserve/api/errorpkg"
-	"github.com/kouprlabs/voltaserve/api/infra"
-	"github.com/kouprlabs/voltaserve/api/log"
-	"github.com/kouprlabs/voltaserve/api/model"
 
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+
+	"github.com/kouprlabs/voltaserve/api/errorpkg"
+	"github.com/kouprlabs/voltaserve/api/helper"
+	"github.com/kouprlabs/voltaserve/api/infra"
+	"github.com/kouprlabs/voltaserve/api/log"
+	"github.com/kouprlabs/voltaserve/api/model"
 )
 
 type taskEntity struct {
-	ID              string         `json:"id" gorm:"column:id"`
-	Name            string         `json:"name" gorm:"column:name"`
-	Error           *string        `json:"error,omitempty" gorm:"column:error"`
-	Percentage      *int           `json:"percentage,omitempty" gorm:"column:percentage"`
-	IsIndeterminate bool           `json:"isIndeterminate" gorm:"column:is_indeterminate"`
-	UserID          string         `json:"userId" gorm:"column:user_id"`
-	Status          string         `json:"status" gorm:"column:status"`
-	Payload         datatypes.JSON `json:"payload" gorm:"column:payload"`
-	CreateTime      string         `json:"createTime" gorm:"column:create_time"`
-	UpdateTime      *string        `json:"updateTime,omitempty" gorm:"column:update_time"`
+	ID              string         `gorm:"column:id"               json:"id"`
+	Name            string         `gorm:"column:name"             json:"name"`
+	Error           *string        `gorm:"column:error"            json:"error,omitempty"`
+	Percentage      *int           `gorm:"column:percentage"       json:"percentage,omitempty"`
+	IsIndeterminate bool           `gorm:"column:is_indeterminate" json:"isIndeterminate"`
+	UserID          string         `gorm:"column:user_id"          json:"userId"`
+	Status          string         `gorm:"column:status"           json:"status"`
+	Payload         datatypes.JSON `gorm:"column:payload"          json:"payload"`
+	CreateTime      string         `gorm:"column:create_time"      json:"createTime"`
+	UpdateTime      *string        `gorm:"column:update_time"      json:"updateTime,omitempty"`
 }
 
 func (*taskEntity) TableName() string {
 	return "task"
 }
 
-func (o *taskEntity) BeforeCreate(*gorm.DB) (err error) {
-	o.CreateTime = time.Now().UTC().Format(time.RFC3339)
+func (e *taskEntity) BeforeCreate(*gorm.DB) (err error) {
+	e.CreateTime = helper.NewTimestamp()
 	return nil
 }
 
-func (o *taskEntity) BeforeSave(*gorm.DB) (err error) {
-	timeNow := time.Now().UTC().Format(time.RFC3339)
-	o.UpdateTime = &timeNow
+func (e *taskEntity) BeforeSave(*gorm.DB) (err error) {
+	timeNow := helper.NewTimestamp()
+	e.UpdateTime = &timeNow
 	return nil
 }
 
-func (p *taskEntity) GetID() string {
-	return p.ID
+func (e *taskEntity) GetID() string {
+	return e.ID
 }
 
-func (p *taskEntity) GetName() string {
-	return p.Name
+func (e *taskEntity) GetName() string {
+	return e.Name
 }
 
-func (p *taskEntity) GetError() *string {
-	return p.Error
+func (e *taskEntity) GetError() *string {
+	return e.Error
 }
 
-func (p *taskEntity) GetPercentage() *int {
-	return p.Percentage
+func (e *taskEntity) GetPercentage() *int {
+	return e.Percentage
 }
 
-func (p *taskEntity) GetIsIndeterminate() bool {
-	return p.IsIndeterminate
+func (e *taskEntity) GetIsIndeterminate() bool {
+	return e.IsIndeterminate
 }
 
-func (p *taskEntity) GetUserID() string {
-	return p.UserID
+func (e *taskEntity) GetUserID() string {
+	return e.UserID
 }
 
-func (p *taskEntity) GetStatus() string {
-	return p.Status
+func (e *taskEntity) GetStatus() string {
+	return e.Status
 }
 
-func (s *taskEntity) GetPayload() map[string]string {
-	if s.Payload.String() == "" {
+func (e *taskEntity) GetPayload() map[string]string {
+	if e.Payload.String() == "" {
 		return nil
 	}
 	res := map[string]string{}
-	if err := json.Unmarshal([]byte(s.Payload.String()), &res); err != nil {
+	if err := json.Unmarshal([]byte(e.Payload.String()), &res); err != nil {
 		log.GetLogger().Fatal(err)
 		return nil
 	}
 	return res
 }
 
-func (o *taskEntity) GetCreateTime() string {
-	return o.CreateTime
+func (e *taskEntity) GetCreateTime() string {
+	return e.CreateTime
 }
 
-func (o *taskEntity) GetUpdateTime() *string {
-	return o.UpdateTime
+func (e *taskEntity) GetUpdateTime() *string {
+	return e.UpdateTime
 }
 
-func (p *taskEntity) HasError() bool {
-	return p.Error != nil
+func (e *taskEntity) HasError() bool {
+	return e.Error != nil
 }
 
-func (p *taskEntity) SetName(name string) {
-	p.Name = name
+func (e *taskEntity) SetName(name string) {
+	e.Name = name
 }
 
-func (p *taskEntity) SetError(error *string) {
-	p.Error = error
+func (e *taskEntity) SetError(error *string) {
+	e.Error = error
 }
 
-func (p *taskEntity) SetPercentage(percentage *int) {
-	p.Percentage = percentage
+func (e *taskEntity) SetPercentage(percentage *int) {
+	e.Percentage = percentage
 }
 
-func (p *taskEntity) SetIsIndeterminate(isIndeterminate bool) {
-	p.IsIndeterminate = isIndeterminate
+func (e *taskEntity) SetIsIndeterminate(isIndeterminate bool) {
+	e.IsIndeterminate = isIndeterminate
 }
 
-func (p *taskEntity) SetUserID(userID string) {
-	p.UserID = userID
+func (e *taskEntity) SetUserID(userID string) {
+	e.UserID = userID
 }
 
-func (p *taskEntity) SetStatus(status string) {
-	p.Status = status
+func (e *taskEntity) SetStatus(status string) {
+	e.Status = status
 }
 
-func (s *taskEntity) SetPayload(p map[string]string) {
+func (e *taskEntity) SetPayload(p map[string]string) {
 	if p == nil {
-		s.Payload = nil
+		e.Payload = nil
 	} else {
 		b, err := json.Marshal(p)
 		if err != nil {
 			log.GetLogger().Fatal(err)
 			return
 		}
-		if err := s.Payload.UnmarshalJSON(b); err != nil {
+		if err := e.Payload.UnmarshalJSON(b); err != nil {
 			log.GetLogger().Fatal(err)
 		}
 	}
@@ -146,8 +146,9 @@ func (s *taskEntity) SetPayload(p map[string]string) {
 type TaskRepo interface {
 	Insert(opts TaskInsertOptions) (model.Task, error)
 	Find(id string) (model.Task, error)
-	GetIDs() ([]string, error)
-	GetCount(email string) (int64, error)
+	Count() (int64, error)
+	GetIDs(userID string) ([]string, error)
+	GetCountByEmail(email string) (int64, error)
 	Save(task model.Task) error
 	Delete(id string) error
 }
@@ -181,6 +182,8 @@ type TaskInsertOptions struct {
 	Payload         map[string]string `json:"payload,omitempty"`
 }
 
+const TaskPayloadObjectKey = "object"
+
 func (repo *taskRepo) Insert(opts TaskInsertOptions) (model.Task, error) {
 	task := taskEntity{
 		ID:              opts.ID,
@@ -205,7 +208,7 @@ func (repo *taskRepo) Insert(opts TaskInsertOptions) (model.Task, error) {
 }
 
 func (repo *taskRepo) find(id string) (*taskEntity, error) {
-	var res = taskEntity{}
+	res := taskEntity{}
 	db := repo.db.Where("id = ?", id).First(&res)
 	if db.Error != nil {
 		if errors.Is(db.Error, gorm.ErrRecordNotFound) {
@@ -225,12 +228,28 @@ func (repo *taskRepo) Find(id string) (model.Task, error) {
 	return res, nil
 }
 
-func (repo *taskRepo) GetIDs() ([]string, error) {
+func (repo *taskRepo) Count() (int64, error) {
+	type Result struct {
+		Result int64
+	}
+	var res Result
+	db := repo.db.
+		Raw("SELECT count(*) as result FROM task").
+		Scan(&res)
+	if db.Error != nil {
+		return 0, db.Error
+	}
+	return res.Result, nil
+}
+
+func (repo *taskRepo) GetIDs(userID string) ([]string, error) {
 	type Value struct {
 		Result string
 	}
 	var values []Value
-	db := repo.db.Raw("SELECT id result FROM task ORDER BY create_time DESC").Scan(&values)
+	db := repo.db.
+		Raw("SELECT id result FROM task WHERE user_id = ? ORDER BY create_time DESC", userID).
+		Scan(&values)
 	if db.Error != nil {
 		return []string{}, db.Error
 	}
@@ -241,7 +260,7 @@ func (repo *taskRepo) GetIDs() ([]string, error) {
 	return res, nil
 }
 
-func (repo *taskRepo) GetCount(userID string) (int64, error) {
+func (repo *taskRepo) GetCountByEmail(userID string) (int64, error) {
 	var count int64
 	db := repo.db.
 		Model(&taskEntity{}).

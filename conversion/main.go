@@ -15,19 +15,21 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
+
 	"github.com/kouprlabs/voltaserve/conversion/config"
 	"github.com/kouprlabs/voltaserve/conversion/errorpkg"
 	"github.com/kouprlabs/voltaserve/conversion/helper"
 	"github.com/kouprlabs/voltaserve/conversion/router"
 	"github.com/kouprlabs/voltaserve/conversion/runtime"
-
-	"github.com/gofiber/fiber/v2"
-	"github.com/joho/godotenv"
 )
 
 // @title		Voltaserve Conversion
 // @version	2.0.0
 // @BasePath	/v2
+//
+// .
 func main() {
 	if _, err := os.Stat(".env.local"); err == nil {
 		err := godotenv.Load(".env.local")
@@ -46,8 +48,10 @@ func main() {
 	schedulerOpts := runtime.NewDefaultSchedulerOptions()
 	pipelineWorkers := flag.Int("pipeline-workers", schedulerOpts.PipelineWorkerCount, "Number of pipeline workers")
 	flag.Parse()
+	installer := runtime.NewInstaller()
 	scheduler := runtime.NewScheduler(runtime.SchedulerOptions{
 		PipelineWorkerCount: *pipelineWorkers,
+		Installer:           installer,
 	})
 
 	app := fiber.New(fiber.Config{
@@ -57,7 +61,9 @@ func main() {
 
 	v2 := app.Group("v2")
 
-	healthRouter := router.NewHealthRouter()
+	healthRouter := router.NewHealthRouter(router.HealthRouterOptions{
+		Installer: installer,
+	})
 	healthRouter.AppendRoutes(v2)
 
 	pipelineRouter := router.NewPipelineRouter(router.NewPipelineRouterOptions{
@@ -66,6 +72,7 @@ func main() {
 	pipelineRouter.AppendRoutes(v2)
 
 	scheduler.Start()
+	installer.Start()
 
 	if err := app.Listen(fmt.Sprintf(":%d", cfg.Port)); err != nil {
 		panic(err)
